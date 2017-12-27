@@ -1,30 +1,32 @@
 " ============================================================================
-" Maintainer:  Alessandro Pezzato <http://pezzato.net/>
+" Original Maintainer:  Alessandro Pezzato <http://pezzato.net/>
 " License:     The MIT License (MIT)
 " ============================================================================
 
-if !exists('g:llvmcov#bin')
-  let g:llvmcov#bin = "build/test/lib/unit_tests"
+if !exists('g:llvmcov#projdir')
+  let g:llvmcov#projdir = fnamemodify("..", ":p")
 endif
 
-if !exists('g:llvmcov#pwd')
-  let g:llvmcov#pwd = "."
+if !exists('g:llvmcov#profdata')
+  let g:llvmcov#profdata = "tests/default.profdata"
 endif
 
-fu! s:GetProfDataPath(pwd)
-  return a:pwd . "/default.profdata"
+fu! s:GetBins()
+  if exists('g:llvmcov#bin')
+      return g:llvmcov#bin
+  endif
+  return systemlist('find ' . g:llvmcov#projdir . '/tests -executable -type f | xargs')[0]
 endf
 
-fu! s:GetProfRawPath(pwd)
-  return a:pwd . "/default.profraw"
+fu! s:GetProfDataPath()
+  return g:llvmcov#projdir . "/" . g:llvmcov#profdata
 endf
 
 fu! s:RunShellCommand(cmdline)
   botright vnew
   setlocal buftype=nofile bufhidden=wipe nobuflisted noswapfile nowrap
-  execute 'silent read !'. a:cmdline
+  execute 'silent .!'. a:cmdline
   setlocal nomodifiable
-  call s:HighlightNoCoverage()
 endf
 
 fu! s:GetReportCommand(profile, bin, source)
@@ -32,12 +34,7 @@ fu! s:GetReportCommand(profile, bin, source)
 endf
 
 fu! s:GetLlvmCovCommand(profile, bin, source)
-  return "llvm-cov show " . " -instr-profile=" . a:profile . " " . a:bin . " " . a:source " --use-color=0"
-endf
-
-fu! s:GetRefreshDataCommand(pwd, bin)
-  let l:profraw = s:GetProfRawPath(g:llvmcov#pwd)
-  return "! mkdir -p " . a:pwd . " && cd " . a:pwd . " && LLVM_PROFILE_FILE=default.profraw " . a:bin . " && llvm-profdata merge -o default.profdata default.profraw"
+  return "llvm-cov show " . " -instr-profile=" . a:profile . " -object " . a:bin . " " . a:source " --use-color=0 -show-instantiations=0 -Xdemangler c++filt -Xdemangler -n -line-coverage-lt=1"
 endf
 
 fu! s:HighlightNoCoverage()
@@ -45,29 +42,29 @@ fu! s:HighlightNoCoverage()
   match CoverageNone /\ \+0|.*/
 endf
 
-fu! g:llvmcov#RefreshData()
-  let l:bin = fnamemodify(g:llvmcov#bin, ':p')
-  let l:cmd = s:GetRefreshDataCommand(g:llvmcov#pwd, l:bin)
-  execute l:cmd
-endf
-
 fu! g:llvmcov#CoverageCurrentFile()
-  let l:profdata = s:GetProfDataPath(g:llvmcov#pwd)
-  let l:cmd = s:GetLlvmCovCommand(l:profdata, g:llvmcov#bin, @%)
+  let l:profdata = s:GetProfDataPath()
+  let l:bins = s:GetBins()
+  let l:file = expand('%:p')
+  let l:cmd = s:GetLlvmCovCommand(l:profdata, l:bins, l:file)
   let l:current_line = line('.') + 2 " FIXME +2 is a fix for bad llvm-cov output
-  windo set scrollbind
+  "windo set scrollbind
   call s:RunShellCommand(l:cmd)
   execute ':0' . l:current_line
+  call s:HighlightNoCoverage()
 endf
 
 fu! g:llvmcov#CoverageReport()
-  let l:profdata = s:GetProfDataPath(g:llvmcov#pwd)
-  let l:cmd = s:GetReportCommand(l:profdata, g:llvmcov#bin, '')
+  let l:profdata = s:GetProfDataPath()
+  let l:bins = s:GetBins()
+  let l:cmd = s:GetReportCommand(l:profdata, l:bins, '')
   call s:RunShellCommand(l:cmd)
 endf
 
 fu! g:llvmcov#CoverageReportCurrentFile()
-  let l:profdata = s:GetProfDataPath(g:llvmcov#pwd)
-  let l:cmd = s:GetReportCommand(l:profdata, g:llvmcov#bin, @%)
+  let l:profdata = s:GetProfDataPath()
+  let l:bins = s:GetBins()
+  let l:file = expand('%:p')
+  let l:cmd = s:GetReportCommand(l:profdata, l:bins, l:file)
   call s:RunShellCommand(l:cmd)
 endf
