@@ -4,6 +4,9 @@
 " ============================================================================
 
 if !exists('g:llvmcov#projdir')
+  if exists('g:TOP')
+    let g:llvmcov#projdir = g:TOP
+  endif
   let g:llvmcov#projdir = fnamemodify("..", ":p")
 endif
 
